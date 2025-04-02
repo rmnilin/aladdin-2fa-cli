@@ -1,0 +1,148 @@
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+permissions:
+  contents: write
+  packages: write
+jobs:
+  get-tag-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - id: get-tag-branches
+        run: |
+          BRANCH="$(git branch --remotes --contains ${{ github.ref }} | sed s/origin\\/// | tr -d '\n')"
+          echo "branches=$BRANCH" >> $GITHUB_OUTPUT
+    outputs:
+      branches: ${{ steps.get-tag-branches.outputs.branches }}
+  prepare:
+    needs:
+      - get-tag-branches
+    if: contains(${{ needs.get-tag-branches.outputs.branches }}, 'main')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ github.ref_name }} --draft --verify-tag --title ${{ github.ref_name }}
+  build-binaries:
+    needs:
+      - prepare
+    strategy:
+      matrix:
+        include:
+          - runs-on: macos-latest
+            target: aarch64-apple-darwin
+            docker: false
+          - runs-on: macos-latest
+            target: x86_64-apple-darwin
+            docker: false
+          - runs-on: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            docker: true
+          - runs-on: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            docker: false
+          - runs-on: windows-latest
+            target: aarch64-pc-windows-msvc
+            docker: false
+          - runs-on: windows-latest
+            target: x86_64-pc-windows-msvc
+            docker: false
+      fail-fast: false
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # 4.2.3
+        with:
+          path: |
+            ~/.cargo/git
+            ~/.cargo/registry
+            ~/.rustup/toolchains
+            target
+          key: cargo-${{ matrix.runs-on }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ matrix.runs-on }}-
+      - run: |
+          rustup target add ${{ matrix.target }}
+      - if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install crossbuild-essential-arm64
+          echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc >> $GITHUB_ENV
+          echo CC=aarch64-linux-gnu-gcc >> $GITHUB_ENV
+      - if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install musl-tools
+      - run: |
+          cargo build --locked --release --target ${{ matrix.target }}
+      - shell: bash
+        run: |
+          ARCHIVE_NAME=${{ github.event.repository.name }}-${{ github.ref_name }}-${{ matrix.target }}
+          cd target/${{ matrix.target }}/release
+          case ${{ matrix.runs-on }} in
+            windows-latest)
+              ARCHIVE_NAME=$ARCHIVE_NAME.zip
+              7z a ../../../$ARCHIVE_NAME ${{ github.event.repository.name }}.exe
+              cd ../../..
+              certutil -hashfile $ARCHIVE_NAME SHA256 > $ARCHIVE_NAME.sha256
+              ;;
+            *)
+              ARCHIVE_NAME=$ARCHIVE_NAME.tar.gz
+              tar czf ../../../$ARCHIVE_NAME ${{ github.event.repository.name }}
+              cd ../../..
+              shasum -a 256 $ARCHIVE_NAME > $ARCHIVE_NAME.sha256
+              ;;
+          esac
+          echo ARCHIVE_NAME=$ARCHIVE_NAME >> $GITHUB_ENV
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload ${{ github.ref_name }} $ARCHIVE_NAME $ARCHIVE_NAME.sha256
+  build-images:
+    needs:
+      - prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # 3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # 3.6.0
+        with:
+          platforms: amd64,arm64
+      - uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # 3.10.0
+        with:
+          platforms: linux/amd64,linux/arm64
+      - uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # 5.7.0
+        id: metadata
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index,manifest
+        with:
+          images: name=ghcr.io/${{ github.event.repository.full_name }}
+      - uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # 6.15.0
+        with:
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          annotations: ${{ steps.metadata.outputs.annotations }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+  release:
+    needs:
+      - build-binaries
+      - build-images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit ${{ github.ref_name }} --draft=false
