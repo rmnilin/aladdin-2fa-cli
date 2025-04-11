@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, time::Duration};
 
 use aes_gcm::aead::Aead;
 use base64::{Engine as _, engine::general_purpose as base64_engines};
@@ -19,7 +19,7 @@ pub struct Client {
 
 impl Client {
     pub fn new(ca_cert_path: Option<&str>, retries: Option<u8>) -> Result<Self> {
-        let http = reqwest::Client::builder();
+        let http = reqwest::Client::builder().pool_idle_timeout(None);
 
         let http = if let Some(ca_cert_path) = ca_cert_path {
             let ca_cert = fs::read(ca_cert_path)?;

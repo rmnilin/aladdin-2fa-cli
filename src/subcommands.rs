@@ -85,7 +85,7 @@ pub async fn run_daemon(
         let result = run_daemon_iteration(&ticket, &client).await;
         if let Err(error) = result {
             tracing::error!("{}", error);
-        };
+        }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
