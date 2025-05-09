@@ -1,8 +1,15 @@
-use std::time::Duration;
+use std::{fs, time::Duration};
 
 use color_eyre::Result;
 
 use crate::jas::{Client, Ticket};
+
+fn get_ca_cert(path: Option<&str>) -> Result<Option<Vec<u8>>> {
+    Ok(match path {
+        Some(path) => Some(fs::read(path)?),
+        None => None,
+    })
+}
 
 pub async fn register(
     uri: &str,
@@ -10,7 +17,8 @@ pub async fn register(
     ca_cert_path: Option<&str>,
     retries: Option<u8>,
 ) -> Result<()> {
-    let client = Client::new(ca_cert_path, retries)?;
+    let ca_cert = get_ca_cert(ca_cert_path)?;
+    let client = Client::new(ca_cert.as_deref(), retries)?;
     let ticket = client.register(uri).await?;
     ticket.save(file_path)?;
     tracing::info!("Ticket registered and saved to {}", file_path);
@@ -23,7 +31,8 @@ pub async fn update(
     retries: Option<u8>,
 ) -> Result<()> {
     let ticket = Ticket::load(file_path)?;
-    let client = Client::new(ca_cert_path, retries)?;
+    let ca_cert = get_ca_cert(ca_cert_path)?;
+    let client = Client::new(ca_cert.as_deref(), retries)?;
     let session_ids = client.update(&ticket).await?;
     if session_ids.is_empty() {
         tracing::debug!("No authentication requests received");
@@ -45,7 +54,8 @@ pub async fn accept(
     retries: Option<u8>,
 ) -> Result<()> {
     let ticket = Ticket::load(file_path)?;
-    let client = Client::new(ca_cert_path, retries)?;
+    let ca_cert = get_ca_cert(ca_cert_path)?;
+    let client = Client::new(ca_cert.as_deref(), retries)?;
     client.accept(&ticket, session_id).await?;
     tracing::info!(
         "Authentication request with session ID {} accepted",
@@ -54,7 +64,12 @@ pub async fn accept(
     Ok(())
 }
 
-async fn run_daemon_iteration(ticket: &Ticket, client: &Client) -> Result<()> {
+async fn run_daemon_iteration(
+    ticket: &Ticket,
+    ca_cert: Option<&[u8]>,
+    retries: Option<u8>,
+) -> Result<()> {
+    let client = Client::new(ca_cert, retries)?;
     let session_ids = client.update(ticket).await?;
     if session_ids.is_empty() {
         tracing::debug!("No authentication requests received");
@@ -80,9 +95,9 @@ pub async fn run_daemon(
     retries: Option<u8>,
 ) -> Result<()> {
     let ticket = Ticket::load(file_path)?;
-    let client = Client::new(ca_cert_path, retries)?;
+    let ca_cert = get_ca_cert(ca_cert_path)?;
     loop {
-        let result = run_daemon_iteration(&ticket, &client).await;
+        let result = run_daemon_iteration(&ticket, ca_cert.as_deref(), retries).await;
         if let Err(error) = result {
             tracing::error!("{}", error);
         }
