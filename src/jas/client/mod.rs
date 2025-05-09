@@ -172,6 +172,13 @@ impl Client {
             token_uid: token_id,
         } = serde_json::from_str(&data)?;
 
+        // Secret in TOTP URI from JAS response is lowercase, which doesn't conform RFC 4648 Base32
+        let totp_uri = regex::Regex::new(r"([?&]secret=)([2-7a-z]+)")?
+            .replace(&totp_uri, |caps: &regex::Captures| {
+                format!("{}{}", &caps[1], caps[2].to_uppercase())
+            })
+            .into_owned();
+
         Ok((auth_key, totp_uri, token_id))
     }
 

@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "aladdin-2fa-cli"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "aes-gcm",
  "base64",
@@ -71,6 +71,7 @@ dependencies = [
  "clap",
  "color-eyre",
  "hmac",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
