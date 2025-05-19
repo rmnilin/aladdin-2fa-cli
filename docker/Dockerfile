@@ -1,4 +1,4 @@
-FROM rust:1.86.0-alpine3.21 AS build
+FROM rust:1.87.0-alpine3.21 AS build
 WORKDIR /app
 COPY . .
 RUN --mount=type=cache,target=/app/target \
