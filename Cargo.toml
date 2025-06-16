@@ -7,7 +7,7 @@ edition = "2024"
 aes-gcm = { version = "=0.10.3", default-features = false, features = ["aes", "alloc"] }
 base64 = { version = "=0.22.1", default-features = false, features = [] }
 chrono = { version = "=0.4.41", default-features = false, features = ["now"] }
-clap = { version = "=4.5.37", default-features = false, features = ["color", "derive", "error-context", "help", "std", "suggestions", "usage"] }
+clap = { version = "=4.5.40", default-features = false, features = ["color", "derive", "error-context", "help", "std", "suggestions", "usage"] }
 color-eyre = { version = "=0.6.4", default-features = false, features = [] }
 hmac = { version = "=0.12.1", default-features = false, features = [] }
 regex = { version = "=1.11.1", default-features = false, features = [] }
