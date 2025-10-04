@@ -9,7 +9,7 @@ jobs:
   get-tag-branches:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
       - id: get-tag-branches
         run: |
           BRANCH="$(git branch --remotes --contains ${{ github.ref }} | sed s/origin\\/// | tr -d '\n')"
@@ -22,7 +22,7 @@ jobs:
     if: contains(${{ needs.get-tag-branches.outputs.branches }}, 'main')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -54,7 +54,7 @@ jobs:
       fail-fast: false
     runs-on: ${{ matrix.runs-on }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # 4.3.0
         with:
           path: |
@@ -107,7 +107,7 @@ jobs:
       - prepare
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
       - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
         with:
           registry: ghcr.io
@@ -141,7 +141,7 @@ jobs:
       - build-images
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
